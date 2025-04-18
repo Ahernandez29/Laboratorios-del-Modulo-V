@@ -1,3 +1,7 @@
+comando para habilitar repositorios:
+sudo dnf config-manager --set-enabled nombre_del_repositorio  
+sudo dnf config-manager --set-enabled \*  
+
 Laboratorio modulo v
 
 Practica 1: Syncronizacion de carpetas con Rsync (1Pts)
