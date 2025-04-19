@@ -131,7 +131,7 @@ sudo vi index.html
 
 node2: 
 
-cd /var/www/htmld/
+cd /var/www/html/
 sudo vi index.html
 
 - Instalar keepalived en ambos nodos
@@ -144,7 +144,7 @@ sudo vi keepalived.conf
 - Agregar la siguiente configuracion:
 
 vrrp_instance VI_1 {
-    state BACKUP
+    state MASTER EN EL NODO PRINCIPAL Y BACKUP EN LOS DEMAS
     interface ens160
     virtual_router_id 50
     priority 80
