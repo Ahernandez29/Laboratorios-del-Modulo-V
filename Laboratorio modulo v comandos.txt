@@ -166,3 +166,129 @@ sudo systemctl restart keepalived
 
 sudo reboot
 ********************************************************
+
+-COMANDOS PARA AGREGAR UNA BASE DE DATOS AL CLUSTER:
+
+1- INSTALAR MARIADB EN AMBOS NODOS:
+
+sudo dnf install -y mariadb-server
+
+ojo: No habilites ni inicies el servicio con systemctl, Pacemaker lo hará por ti.
+
+2- Configurar MariaDB para que escuche en todas las IPs
+Edita el archivo:
+
+sudo nano /etc/my.cnf.d/mariadb-server.cnf
+
+Agrega o modifica dentro de [mysqld]:
+
+bind-address=0.0.0.0
+
+Haz esto en ambos nodos.
+
+3. Iniciar MariaDB temporalmente para configuración inicial
+Solo en el nodo principal (nodo donde iniciarás la BD primero):
+
+sudo systemctl start mariadb
+
+-Ejecuta el asistente de seguridad:
+
+sudo mysql_secure_installation
+
+- Luego crea el usuario remoto (desde consola de MySQL):
+
+CREATE USER 'root'@'%' IDENTIFIED BY 'tu_contraseña';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+
+- Apaga MariaDB antes de pasar a Pacemaker:
+
+sudo systemctl stop mariadb
+
+ 4. Agregar el recurso MariaDB al clúster
+🧱 A) Recurso MariaDB:
+
+sudo pcs resource create MariaDB systemd:mariadb --group DBGrupo op monitor interval=30s
+
+📌 Explicación:
+
+MariaDB: Nombre del recurso.
+
+systemd:mariadb: Tipo de recurso (servicio).
+
+--group DBGrupo: Opcional para agrupar con otros recursos como IP flotante.
+
+monitor: Verifica si el servicio sigue activo cada 30 segundos.
+
+ 5. Agregar una IP flotante (opcional pero recomendado)
+Esto permite que los clientes siempre se conecten a la misma IP, sin importar en qué nodo esté MariaDB.
+
+sudo pcs resource create DB-IP ocf:heartbeat:IPaddr2 ip=192.168.1.150 cidr_netmask=24 op monitor interval=30s
+
+Agrégala al mismo grupo:
+
+sudo pcs resource group add DBGrupo DB-IP
+
+ 6. Verificar el clúster
+
+sudo pcs status
+
+ 7. Probar conexión
+Desde cualquier máquina de la red o desde el otro nodo:
+
+mysql -h 192.168.1.150 -u root -p
+
+💡 Si no puedes conectarte, asegúrate de:
+
+- Que el firewall permite el puerto 3306:
+sudo firewall-cmd --permanent --add-port=3306/tcp
+sudo firewall-cmd --reload
+
+8. Prueba de Failover
+Apaga el nodo activo:
+
+sudo reboot
+
+- Verifica que MariaDB se haya movido automáticamente al otro nodo:
+
+sudo pcs status
+
+-------------------------------------------------------------------
+-COMANDO PARA ACCEDER A MARIADB:
+
+sudo MySQL -u root -p
+
+-VER USUARIOS EXISTENTES:
+
+SELECT Host, User FROM Mysql.user;
+
+- COMANDO PARA CREAR UN USUARIO ROOT QUE SE CONECTE DESDE CUALQUIER IP:
+
+CREATE USER 'root'@'%' IDENTIFIED BY 'tu_contraseña';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+
+ Explicación:
+
+'root'@'%': Permite al usuario root conectarse desde cualquier IP o hostname.
+
+GRANT ALL PRIVILEGES: Le da todos los permisos para operar.
+
+FLUSH PRIVILEGES: Aplica los cambios.
+
+-(Opcional) Crear usuario específico para node1
+Si prefieres restringir acceso solo al nodo1:
+
+CREATE USER 'root'@'node1' IDENTIFIED BY 'tu_contraseña';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'node1' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+
+Asegúrate que el hostname node1 se resuelva correctamente en la red. Si no, usa la IP directamente:
+
+CREATE USER 'root'@'192.168.1.10' IDENTIFIED BY 'tu_contraseña';
+
+Sal de MariaDB y prueba de nuevo
+Desde node1:
+
+mysql -h 192.168.1.150 -u root -p
+Ahora debería conectarte sin problemas si usaste % o la IP específica.
